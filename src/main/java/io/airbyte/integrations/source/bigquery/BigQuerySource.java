@@ -73,8 +73,10 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected BigQueryDatabase createDatabase(final JsonNode sourceConfig) {
+    LOGGER.info("CustomSource::createDatabase params: sourceConfig: {}", sourceConfig);
     dbConfig = Jsons.clone(sourceConfig);
-    final BigQueryDatabase database = new BigQueryDatabase(sourceConfig.get(CONFIG_PROJECT_ID).asText(), sourceConfig.get(CONFIG_CREDS).asText());
+    final BigQueryDatabase database = new BigQueryDatabase(sourceConfig.get(CONFIG_PROJECT_ID).asText(),
+        sourceConfig.get(CONFIG_CREDS).asText());
     database.setSourceConfig(sourceConfig);
     database.setDatabaseConfig(toDatabaseConfig(sourceConfig));
     return database;
@@ -93,7 +95,8 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
     checkList.add(database -> {
       if (isDatasetConfigured(database)) {
         database.query(String.format("select 1 from %s where 1=0",
-            getFullyQualifiedTableNameWithQuoting(getConfigDatasetId(database), "INFORMATION_SCHEMA.TABLES", getQuoteString())));
+            getFullyQualifiedTableNameWithQuoting(getConfigDatasetId(database), "INFORMATION_SCHEMA.TABLES",
+                getQuoteString())));
         LOGGER.info("The source passed the Dataset query test!");
       } else {
         LOGGER.info("The Dataset query test is skipped due to not configured datasetId!");
@@ -114,15 +117,17 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   @Override
-  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database) throws Exception {
+  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database)
+      throws Exception {
     return discoverInternal(database, null);
   }
 
   @Override
-  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database, final String schema) {
+  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database,
+      final String schema) {
     final String projectId = dbConfig.get(CONFIG_PROJECT_ID).asText();
-    final List<Table> tables =
-        (isDatasetConfigured(database) ? database.getDatasetTables(getConfigDatasetId(database)) : database.getProjectTables(projectId));
+    final List<Table> tables = (isDatasetConfigured(database) ? database.getDatasetTables(getConfigDatasetId(database))
+        : database.getProjectTables(projectId));
     final List<TableInfo<CommonField<StandardSQLTypeName>>> result = new ArrayList<>();
     tables.stream().map(table -> TableInfo.<CommonField<StandardSQLTypeName>>builder()
         .nameSpace(table.getTableId().getDataset())
@@ -145,7 +150,8 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected Map<String, List<String>> discoverPrimaryKeys(final BigQueryDatabase database,
-                                                          final List<TableInfo<CommonField<StandardSQLTypeName>>> tableInfos) {
+      final List<TableInfo<CommonField<StandardSQLTypeName>>> tableInfos) {
+    LOGGER.info("CustomSource::discoverPrimaryKeys params:  tableInfos: {}", tableInfos);
     return Collections.emptyMap();
   }
 
@@ -156,11 +162,11 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   public AutoCloseableIterator<JsonNode> queryTableIncremental(final BigQueryDatabase database,
-                                                               final List<String> columnNames,
-                                                               final String schemaName,
-                                                               final String tableName,
-                                                               final CursorInfo cursorInfo,
-                                                               final StandardSQLTypeName cursorFieldType) {
+      final List<String> columnNames,
+      final String schemaName,
+      final String tableName,
+      final CursorInfo cursorInfo,
+      final StandardSQLTypeName cursorFieldType) {
     return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ?",
         RelationalDbQueryUtils.enquoteIdentifierList(columnNames, getQuoteString()),
         getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString()),
@@ -172,12 +178,21 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected AutoCloseableIterator<JsonNode> queryTableFullRefresh(final BigQueryDatabase database,
-                                                                  final List<String> columnNames,
-                                                                  final String schemaName,
-                                                                  final String tableName,
-                                                                  final SyncMode syncMode,
-                                                                  final Optional<String> cursorField) {
+      final List<String> columnNames,
+      final String schemaName,
+      final String tableName,
+      final SyncMode syncMode,
+      final Optional<String> cursorField) {
     LOGGER.info("Queueing query for table: {}", tableName);
+    LOGGER.info(
+        "CustomSource::queryTableFullRefresh params:  columnNames: {}, schemaName: {}, tableName: {}",
+        columnNames, schemaName, tableName);
+
+    LOGGER.info("CustomSource::queryTableFullRefresh::sqlQuery: {}",
+        String.format("SELECT %s FROM %s",
+            enquoteIdentifierList(columnNames, getQuoteString()),
+            getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString())));
+
     return queryTable(database, String.format("SELECT %s FROM %s",
         enquoteIdentifierList(columnNames, getQuoteString()),
         getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString())),
@@ -190,11 +205,12 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   private AutoCloseableIterator<JsonNode> queryTableWithParams(final BigQueryDatabase database,
-                                                               final String sqlQuery,
-                                                               final String schemaName,
-                                                               final String tableName,
-                                                               final QueryParameterValue... params) {
-    final AirbyteStreamNameNamespacePair airbyteStream = AirbyteStreamUtils.convertFromNameAndNamespace(tableName, schemaName);
+      final String sqlQuery,
+      final String schemaName,
+      final String tableName,
+      final QueryParameterValue... params) {
+    final AirbyteStreamNameNamespacePair airbyteStream = AirbyteStreamUtils.convertFromNameAndNamespace(tableName,
+        schemaName);
     return AutoCloseableIterators.lazyIterator(() -> {
       try {
         final Stream<JsonNode> stream = database.query(sqlQuery, params);
@@ -222,6 +238,7 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   @Override
-  public void close() throws Exception {}
+  public void close() throws Exception {
+  }
 
 }
