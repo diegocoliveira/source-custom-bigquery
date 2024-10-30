@@ -33,6 +33,7 @@ import io.airbyte.protocol.models.CommonField;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.v0.SyncMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +53,11 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   public static final String CONFIG_DATASET_ID = "dataset_id";
   public static final String CONFIG_PROJECT_ID = "project_id";
   public static final String CONFIG_CREDS = "credentials_json";
-
+  public static final String CONFIG_ADDITIONAL = "additional_config";
+  public static final String CONFIG_TABLENAME = "tablename";
+  public static final String CONFIG_FILTER_CONDITION = "filter_condition";
   private JsonNode dbConfig;
+  private Map<String, String> tableFilterConditions = new HashMap<>();
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
 
   protected BigQuerySource() {
@@ -73,8 +77,8 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected BigQueryDatabase createDatabase(final JsonNode sourceConfig) {
-    LOGGER.info("CustomSource::createDatabase params: sourceConfig: {}", sourceConfig);
     dbConfig = Jsons.clone(sourceConfig);
+    setFilterConditions(sourceConfig);
     final BigQueryDatabase database = new BigQueryDatabase(sourceConfig.get(CONFIG_PROJECT_ID).asText(),
         sourceConfig.get(CONFIG_CREDS).asText());
     database.setSourceConfig(sourceConfig);
@@ -151,7 +155,6 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   @Override
   protected Map<String, List<String>> discoverPrimaryKeys(final BigQueryDatabase database,
       final List<TableInfo<CommonField<StandardSQLTypeName>>> tableInfos) {
-    LOGGER.info("CustomSource::discoverPrimaryKeys params:  tableInfos: {}", tableInfos);
     return Collections.emptyMap();
   }
 
@@ -184,19 +187,13 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
       final SyncMode syncMode,
       final Optional<String> cursorField) {
     LOGGER.info("Queueing query for table: {}", tableName);
-    LOGGER.info(
-        "CustomSource::queryTableFullRefresh params:  columnNames: {}, schemaName: {}, tableName: {}",
-        columnNames, schemaName, tableName);
-
-    LOGGER.info("CustomSource::queryTableFullRefresh::sqlQuery: {}",
-        String.format("SELECT %s FROM %s",
-            enquoteIdentifierList(columnNames, getQuoteString()),
-            getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString())));
-
-    return queryTable(database, String.format("SELECT %s FROM %s",
+    String sqlQuery = String.format("SELECT %s FROM %s WHERE %s",
         enquoteIdentifierList(columnNames, getQuoteString()),
-        getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString())),
-        tableName, schemaName);
+        getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString()),
+        getFilterConditions(tableName));
+
+    return queryTable(database, sqlQuery, schemaName, tableName);
+
   }
 
   @Override
@@ -219,6 +216,21 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
         throw new RuntimeException(e);
       }
     }, airbyteStream);
+  }
+
+  private void setFilterConditions(final JsonNode config) {
+    JsonNode additionalConfig = config.get(CONFIG_ADDITIONAL);
+    if (additionalConfig != null) {
+      for (JsonNode node : additionalConfig) {
+        String tablename = node.get(CONFIG_TABLENAME).asText();
+        String filterCondition = node.get(CONFIG_FILTER_CONDITION).asText();
+        tableFilterConditions.put(tablename, filterCondition);
+      }
+    }
+  }
+
+  private String getFilterConditions(final String tableName) {
+    return tableFilterConditions.getOrDefault(tableName, "1=1");
   }
 
   private boolean isDatasetConfigured(final SqlDatabase database) {
