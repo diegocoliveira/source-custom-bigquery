@@ -1,21 +1,54 @@
-# BigQuery Test Configuration
+Aqui está o `README.md` com os passos detalhados para duplicar, renomear e publicar sua imagem Docker personalizada no Docker Hub:
 
-In order to test the BigQuery source, you need a service account key file.
+```markdown
+# Conector Customizado do BigQuery
 
-## Community Contributor
+Este guia fornece instruções para duplicar o conector BigQuery da Airbyte, personalizar e publicar sua própria imagem Docker.
 
-As a community contributor, you will need access to a GCP project and BigQuery to run tests.
+## Passo a Passo
 
-1. Go to the `Service Accounts` page on the GCP console
-1. Click on `+ Create Service Account" button
-1. Fill out a descriptive name/id/description
-1. Click the edit icon next to the service account you created on the `IAM` page
-1. Add the `BigQuery Data Editor` and `BigQuery User` role
-1. Go back to the `Service Accounts` page and use the actions modal to `Create Key`
-1. Download this key as a JSON file
-1. Move and rename this file to `secrets/credentials.json`
+### 1. Duplicar e Renomear a Pasta do Conector
 
-## Airbyte Employee
+Primeiro, faça uma cópia da pasta do conector `source-bigquery` para `source-custom-bigquery`:
 
-1. Access the `BigQuery Integration Test User` secret on Rippling under the `Engineering` folder
-1. Create a file with the contents at `secrets/credentials.json`
+```bash
+cp -r /airbyte/airbyte-integrations/connectors/source-bigquery /airbyte/airbyte-integrations/connectors/source-custom-bigquery
+```
+
+### 2. Gerar a Imagem Docker do Conector Customizado
+
+Após duplicar a pasta, gere a imagem Docker para o novo conector com o comando:
+
+```bash
+airbyte-ci connectors --name source-custom-bigquery build
+```
+
+### 3. Renomear a Imagem Docker para seu Docker Hub
+
+Renomeie a imagem criada para o repositório do Docker Hub, substituindo `<seu_dockerhub_usuario>` pelo seu nome de usuário no Docker Hub (neste caso, `diegocoliveira07`):
+
+```bash
+docker tag airbyte/source-custom-bigquery:dev diegocoliveira07/source-custom-bigquery:0.1.4
+```
+
+### 4. Login no Docker Hub
+
+Faça login no Docker Hub para autenticar sua conta:
+
+```bash
+docker login
+```
+
+### 5. Publicar a Imagem Docker no Docker Hub
+
+Após o login, publique a imagem no Docker Hub:
+
+```bash
+docker push diegocoliveira07/source-custom-bigquery:0.1.4
+```
+
+---
+
+Agora, a imagem `diegocoliveira07/source-custom-bigquery:0.1.4` estará disponível no Docker Hub e pronta para ser usada ou compartilhada!
+```
+

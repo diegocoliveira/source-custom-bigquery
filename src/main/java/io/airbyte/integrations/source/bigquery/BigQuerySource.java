@@ -33,6 +33,7 @@ import io.airbyte.protocol.models.CommonField;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.v0.SyncMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,8 +53,11 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   public static final String CONFIG_DATASET_ID = "dataset_id";
   public static final String CONFIG_PROJECT_ID = "project_id";
   public static final String CONFIG_CREDS = "credentials_json";
-
+  public static final String CONFIG_ADDITIONAL = "additional_config";
+  public static final String CONFIG_TABLENAME = "tablename";
+  public static final String CONFIG_FILTER_CONDITION = "filter_condition";
   private JsonNode dbConfig;
+  private Map<String, String> tableFilterConditions = new HashMap<>();
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
 
   protected BigQuerySource() {
@@ -74,7 +78,9 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   @Override
   protected BigQueryDatabase createDatabase(final JsonNode sourceConfig) {
     dbConfig = Jsons.clone(sourceConfig);
-    final BigQueryDatabase database = new BigQueryDatabase(sourceConfig.get(CONFIG_PROJECT_ID).asText(), sourceConfig.get(CONFIG_CREDS).asText());
+    setFilterConditions(sourceConfig);
+    final BigQueryDatabase database = new BigQueryDatabase(sourceConfig.get(CONFIG_PROJECT_ID).asText(),
+        sourceConfig.get(CONFIG_CREDS).asText());
     database.setSourceConfig(sourceConfig);
     database.setDatabaseConfig(toDatabaseConfig(sourceConfig));
     return database;
@@ -93,7 +99,8 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
     checkList.add(database -> {
       if (isDatasetConfigured(database)) {
         database.query(String.format("select 1 from %s where 1=0",
-            getFullyQualifiedTableNameWithQuoting(getConfigDatasetId(database), "INFORMATION_SCHEMA.TABLES", getQuoteString())));
+            getFullyQualifiedTableNameWithQuoting(getConfigDatasetId(database), "INFORMATION_SCHEMA.TABLES",
+                getQuoteString())));
         LOGGER.info("The source passed the Dataset query test!");
       } else {
         LOGGER.info("The Dataset query test is skipped due to not configured datasetId!");
@@ -114,15 +121,17 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   @Override
-  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database) throws Exception {
+  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database)
+      throws Exception {
     return discoverInternal(database, null);
   }
 
   @Override
-  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database, final String schema) {
+  protected List<TableInfo<CommonField<StandardSQLTypeName>>> discoverInternal(final BigQueryDatabase database,
+      final String schema) {
     final String projectId = dbConfig.get(CONFIG_PROJECT_ID).asText();
-    final List<Table> tables =
-        (isDatasetConfigured(database) ? database.getDatasetTables(getConfigDatasetId(database)) : database.getProjectTables(projectId));
+    final List<Table> tables = (isDatasetConfigured(database) ? database.getDatasetTables(getConfigDatasetId(database))
+        : database.getProjectTables(projectId));
     final List<TableInfo<CommonField<StandardSQLTypeName>>> result = new ArrayList<>();
     tables.stream().map(table -> TableInfo.<CommonField<StandardSQLTypeName>>builder()
         .nameSpace(table.getTableId().getDataset())
@@ -145,7 +154,7 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected Map<String, List<String>> discoverPrimaryKeys(final BigQueryDatabase database,
-                                                          final List<TableInfo<CommonField<StandardSQLTypeName>>> tableInfos) {
+      final List<TableInfo<CommonField<StandardSQLTypeName>>> tableInfos) {
     return Collections.emptyMap();
   }
 
@@ -156,11 +165,11 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   public AutoCloseableIterator<JsonNode> queryTableIncremental(final BigQueryDatabase database,
-                                                               final List<String> columnNames,
-                                                               final String schemaName,
-                                                               final String tableName,
-                                                               final CursorInfo cursorInfo,
-                                                               final StandardSQLTypeName cursorFieldType) {
+      final List<String> columnNames,
+      final String schemaName,
+      final String tableName,
+      final CursorInfo cursorInfo,
+      final StandardSQLTypeName cursorFieldType) {
     return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ?",
         RelationalDbQueryUtils.enquoteIdentifierList(columnNames, getQuoteString()),
         getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString()),
@@ -172,16 +181,19 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected AutoCloseableIterator<JsonNode> queryTableFullRefresh(final BigQueryDatabase database,
-                                                                  final List<String> columnNames,
-                                                                  final String schemaName,
-                                                                  final String tableName,
-                                                                  final SyncMode syncMode,
-                                                                  final Optional<String> cursorField) {
+      final List<String> columnNames,
+      final String schemaName,
+      final String tableName,
+      final SyncMode syncMode,
+      final Optional<String> cursorField) {
     LOGGER.info("Queueing query for table: {}", tableName);
-    return queryTable(database, String.format("SELECT %s FROM %s",
+    String sqlQuery = String.format("SELECT %s FROM %s WHERE %s",
         enquoteIdentifierList(columnNames, getQuoteString()),
-        getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString())),
-        tableName, schemaName);
+        getFullyQualifiedTableNameWithQuoting(schemaName, tableName, getQuoteString()),
+        getFilterConditions(tableName));
+
+    return queryTable(database, sqlQuery, schemaName, tableName);
+
   }
 
   @Override
@@ -190,11 +202,12 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   private AutoCloseableIterator<JsonNode> queryTableWithParams(final BigQueryDatabase database,
-                                                               final String sqlQuery,
-                                                               final String schemaName,
-                                                               final String tableName,
-                                                               final QueryParameterValue... params) {
-    final AirbyteStreamNameNamespacePair airbyteStream = AirbyteStreamUtils.convertFromNameAndNamespace(tableName, schemaName);
+      final String sqlQuery,
+      final String schemaName,
+      final String tableName,
+      final QueryParameterValue... params) {
+    final AirbyteStreamNameNamespacePair airbyteStream = AirbyteStreamUtils.convertFromNameAndNamespace(tableName,
+        schemaName);
     return AutoCloseableIterators.lazyIterator(() -> {
       try {
         final Stream<JsonNode> stream = database.query(sqlQuery, params);
@@ -203,6 +216,21 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
         throw new RuntimeException(e);
       }
     }, airbyteStream);
+  }
+
+  private void setFilterConditions(final JsonNode config) {
+    JsonNode additionalConfig = config.get(CONFIG_ADDITIONAL);
+    if (additionalConfig != null) {
+      for (JsonNode node : additionalConfig) {
+        String tablename = node.get(CONFIG_TABLENAME).asText();
+        String filterCondition = node.get(CONFIG_FILTER_CONDITION).asText();
+        tableFilterConditions.put(tablename, filterCondition);
+      }
+    }
+  }
+
+  private String getFilterConditions(final String tableName) {
+    return tableFilterConditions.getOrDefault(tableName, "1=1");
   }
 
   private boolean isDatasetConfigured(final SqlDatabase database) {
@@ -222,6 +250,7 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
   }
 
   @Override
-  public void close() throws Exception {}
+  public void close() throws Exception {
+  }
 
 }

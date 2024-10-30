@@ -10,7 +10,7 @@
     "properties": {
       "project_id": {
         "type": "string",
-        "description": "[Desenvolvido por DIEGO OLIVEIRA] The GCP project ID for the project containing the target BigQuery dataset.",
+        "description": "The GCP project ID for the project containing the target BigQuery dataset.",
         "title": "Project ID"
       },
       "dataset_id": {
@@ -23,6 +23,25 @@
         "description": "The contents of your Service Account Key JSON file. See the <a href=\"https://docs.airbyte.com/integrations/sources/bigquery#setup-the-bigquery-source-in-airbyte\">docs</a> for more information on how to obtain this key.",
         "title": "Credentials JSON",
         "airbyte_secret": true
+      },
+     "additional_config": {
+        "type": "array",
+        "description": "If you do not want to copy the entire table, provide the table name and a filter condition.",
+        "title": "Table Filter Configuration",
+        "items": {
+          "type": "object",
+          "properties": {
+            "tablename": {
+              "type": "string",
+              "description": "The name of the table."
+            },
+            "filter_condition": {
+              "type": "string",
+              "description": "The filter condition to apply to the data."
+            }
+          },
+          "required": ["tablename", "filter_condition"]
+        }
       }
     }
   }
