@@ -1,0 +1,53 @@
+# Diretórios e arquivos específicos do Maven
+/target/
+/pom.xml.tag
+/pom.xml.releaseBackup
+/pom.xml.versionsBackup
+/logging.properties
+/release.properties
+dependency-reduced-pom.xml
+
+# Diretórios e arquivos específicos do Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Arquivos de log
+*.log
+
+# Configurações de ambiente
+.env
+
+# Configurações específicas do VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Arquivos temporários e caches de sistema
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+Thumbs.db
+
+# Arquivos de configuração do sistema operacional
+.DS_Store
+.idea/
+.project
+.classpath
+
+# Configurações de builds locais
+target/
+out/
+bin/
+
+# Cache do Maven
+.m2/repository/
+
+# Outras configurações de IDEs
+/.factorypath
+.gradle/
+build/
