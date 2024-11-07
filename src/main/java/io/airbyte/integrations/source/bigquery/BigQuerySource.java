@@ -112,7 +112,13 @@ public class BigQuerySource extends AbstractDbSource<StandardSQLTypeName, BigQue
 
   @Override
   protected JsonSchemaType getAirbyteType(final StandardSQLTypeName columnType) {
-    return sourceOperations.getAirbyteType(columnType);
+    return switch (columnType) {
+      case StandardSQLTypeName.DATE -> JsonSchemaType.STRING_DATE;
+      case StandardSQLTypeName.DATETIME -> JsonSchemaType.STRING_TIMESTAMP_WITHOUT_TIMEZONE;
+      case StandardSQLTypeName.TIMESTAMP -> JsonSchemaType.STRING_TIMESTAMP_WITH_TIMEZONE;
+      default -> sourceOperations.getAirbyteType(columnType);
+    };
+
   }
 
   @Override
