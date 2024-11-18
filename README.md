@@ -28,7 +28,7 @@ airbyte-ci connectors --name source-custom-bigquery build
 Renomeie a imagem criada para o repositório do Docker Hub, substituindo `<seu_dockerhub_usuario>` pelo seu nome de usuário no Docker Hub (neste caso, `diegocoliveira07`):
 
 ```bash
-docker tag airbyte/source-custom-bigquery:dev diegocoliveira07/source-custom-bigquery:0.1.6
+docker tag airbyte/source-custom-bigquery:dev diegocoliveira07/source-custom-bigquery:1.0.0
 ```
 
 ### 4. Login no Docker Hub
@@ -44,11 +44,11 @@ docker login
 Após o login, publique a imagem no Docker Hub:
 
 ```bash
-docker push diegocoliveira07/source-custom-bigquery:0.1.6
+docker push diegocoliveira07/source-custom-bigquery:1.0.0
 ```
 
 ---
 
-Agora, a imagem `diegocoliveira07/source-custom-bigquery:0.1.6` estará disponível no Docker Hub e pronta para ser usada ou compartilhada!
+Agora, a imagem `diegocoliveira07/source-custom-bigquery:1.0.0` estará disponível no Docker Hub e pronta para ser usada ou compartilhada!
 ```
 
